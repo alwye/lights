@@ -1,0 +1,7 @@
+{
+  "command": "loop_random",
+  "args": {
+    "max_brightness": 150,
+    "delay": 500
+  }
+}
