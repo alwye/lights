@@ -9,7 +9,7 @@ import ustruct as struct
 import config as c
 
 # LED config
-commands_on_repeat = ['loop', 'loop_random']
+commands_on_repeat = ['loop', 'loop_random', 'loop_strobing']
 
 # Disable access point mode
 ap = network.WLAN(network.AP_IF)
@@ -24,6 +24,20 @@ np = neopixel.NeoPixel(machine.Pin(c.DATA_PIN), c.LED_N, bpp=c.LED_BPP)
 
 while not wlan.isconnected():
     time.sleep(0.1)
+
+
+def split_sleep(ms):
+    sleep_threshold = 500
+    if read_mqtt_inline() is True:
+        return True
+    if ms < sleep_threshold:
+        time.sleep_ms(ms)
+    else:
+        while ms > 0:
+            if read_mqtt_inline() is True:
+                return True
+            ms = ms - sleep_threshold
+            time.sleep_ms(sleep_threshold)
 
 
 def _recv_len():
@@ -88,6 +102,24 @@ def cmd_fill(r, g, b, w):
     np.write()
 
 
+def cmd_loop_strobing(palette, delay):
+    """
+    palette = [{r,g,b,w},{r,g,b,w},...]
+    :param palette:
+    :param delay:
+    :return:
+    """
+    for colour in palette:
+        palette_tuple = (colour['r'],
+                         colour['g'],
+                         colour['b'],
+                         colour['w'])
+        np.fill(palette_tuple)
+        np.write()
+        if split_sleep(delay) is True:
+            return
+
+
 def cmd_loop(palette, delay):
     """
     palette = [{r,g,b,w},{r,g,b,w},...]
@@ -104,9 +136,8 @@ def cmd_loop(palette, delay):
                              colour['w'])
             np[led_i] = palette_tuple
             np.write()
-            if read_mqtt_inline() is True:
+            if split_sleep(delay) is True:
                 return
-            time.sleep_ms(delay)
 
 
 def cmd_loop_random(max_brightness, delay):
@@ -123,9 +154,8 @@ def cmd_loop_random(max_brightness, delay):
                   0)
         np[0] = colour
         np.write()
-        if read_mqtt_inline() is True:
+        if split_sleep(delay) is True:
             return
-        time.sleep_ms(delay)
 
 
 def cmd_handler(topic, message):
@@ -147,6 +177,9 @@ def cmd_handler(topic, message):
         elif _command == 'loop_random':
             cmd_loop_random(max_brightness=message['args']['max_brightness'],
                             delay=message['args']['delay'])
+        elif _command == 'loop_strobing':
+            cmd_loop_strobing(palette=message['args']['palette'],
+                              delay=message['args']['delay'])
     except ValueError:
         print('invalid json')
 
@@ -164,7 +197,7 @@ mqtt_client.set_callback(cmd_handler)
 if not mqtt_client.connect(clean_session=True):
     mqtt_client.subscribe(c.MQTT_TOPIC)
 
-while 1:
+while 1 and _command != 'stop':
     if mqtt_client.check_msg() is None:
         if _command in commands_on_repeat:
             cmd_handler(_topic, _message)
