@@ -9,7 +9,7 @@ import ustruct as struct
 import config as c
 
 # LED config
-commands_on_repeat = ['loop', 'loop_random', 'loop_strobing']
+commands_on_repeat = ['loop', 'loop_random', 'loop_strobing', 'loop_rainbow']
 
 # Disable access point mode
 ap = network.WLAN(network.AP_IF)
@@ -140,6 +140,33 @@ def cmd_loop(palette, delay):
                 return
 
 
+def cmd_loop_rainbow(delay):
+    """
+
+    :param delay:
+    :return:
+    """
+
+    ch_max = 150
+    colours = [ch_max, 0, 0]
+
+    main_ch = 0
+    while True:
+        if colours[main_ch] == ch_max:
+            prev_ch = main_ch - 1
+            if colours[prev_ch] > 0:
+                colours[prev_ch] = colours[prev_ch] - 1
+            elif colours[main_ch] == ch_max:
+                main_ch = (main_ch + 1) % 3
+        else:
+            colours[main_ch] = colours[main_ch] + 1
+
+        np.fill((colours[0], colours[1], colours[2], 0))
+        np.write()
+
+        time.sleep_ms(delay)
+
+
 def cmd_loop_random(max_brightness, delay):
     # max_ch_intensity = floor(max_brightness / 4)
     for led_i in range(c.LED_N):
@@ -180,6 +207,8 @@ def cmd_handler(topic, message):
         elif _command == 'loop_strobing':
             cmd_loop_strobing(palette=message['args']['palette'],
                               delay=message['args']['delay'])
+        elif _command == 'loop_rainbow':
+            cmd_loop_rainbow(delay=message['args']['delay'])
     except ValueError:
         print('invalid json')
 
