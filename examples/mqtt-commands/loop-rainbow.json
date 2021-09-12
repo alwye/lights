@@ -1,0 +1,6 @@
+{
+  "command": "loop_rainbow",
+  "args": {
+    "delay": 0
+  }
+}
